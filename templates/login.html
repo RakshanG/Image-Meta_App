@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - ImageMeta</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .navbar {
+            background-color: #198754 !important;
+        }
+        .navbar-brand {
+            color: white !important;
+            font-weight: bold;
+        }
+        .card {
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+        .btn-login {
+            background-color: #198754;
+            border-color: #198754;
+        }
+        .btn-login:hover {
+            background-color: #157347;
+        }
+        .text-blue {
+            color: #157347;
+        }
+        .form-control:focus {
+            box-shadow: 0 0 0 0.2rem rgba(25, 137, 84, 0.25);
+        }
+        .password-toggle {
+            cursor: pointer;
+            user-select: none;
+        }
+        .spinner-border {
+            vertical-align: middle;
+        }
+        .forgot-password {
+            text-align: right;
+            margin-top: 10px;
+        }
+        .alert {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg">
+    <div class="container">
+        <a class="navbar-brand" href="{{ url_for('main.home') }}">ImageMeta</a>
+    </div>
+</nav>
+
+<div class="container d-flex justify-content-center align-items-center" style="height: 90vh;">
+    <div class="card p-4">
+        <h3 class="text-center">Login</h3>
+
+        
+        <div id="flash-messages" aria-live="polite">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        
+        <form id="login-form" autocomplete="on">
+            <input type="hidden" id="csrf_token" name="csrf_token" value="{{ csrf_token() }}">
+
+            
+            <div class="mb-3">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" class="form-control" id="email" name="email" 
+                       placeholder="Enter email" required autocomplete="email">
+            </div>
+            
+            
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <div class="input-group">
+                    <input type="password" class="form-control" id="password" name="password" 
+                           placeholder="Enter password" required autocomplete="current-password">
+                    <span class="input-group-text password-toggle" onclick="togglePassword('password')">👁️</span>
+                </div>
+            </div>
+            
+            
+            <div class="mb-3 form-check">
+                <input type="checkbox" class="form-check-input" name="remember_me" id="remember_me">
+                <label class="form-check-label" for="remember_me">Remember Me</label>
+            </div>
+            
+            
+            <button type="submit" class="btn btn-login w-100">
+                <span id="btn-text">Login</span>
+                <span id="loading-spinner" class="spinner-border spinner-border-sm" style="display: none;"></span>
+            </button>
+        </form>
+
+        
+        <div class="forgot-password">
+            <a href="{{ url_for('auth.reset_password') }}" class="text-blue">Forgot Password?</a>
+        </div>
+
+        
+        <p class="text-center mt-3">Don't have an account? 
+            <a href="{{ url_for('auth.register_page') }}" class="text-blue">Register</a>
+        </p>
+    </div>
+</div>
+
+<script>
+    
+    function togglePassword(fieldId) {
+        const field = document.getElementById(fieldId);
+        if (field.type === "password") {
+            field.type = "text";
+        } else {
+            field.type = "password";
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const loginForm = document.getElementById("login-form");
+
+        loginForm.addEventListener("submit", async function (event) {
+            event.preventDefault();
+            await loginUser();
+        });
+
+        async function loginUser() {
+            const email = document.getElementById("email").value.trim();
+            const password = document.getElementById("password").value.trim();
+            const rememberMe = document.getElementById("remember_me").checked;
+            const csrfToken = document.getElementById("csrf_token").value;
+
+            const submitButton = document.querySelector(".btn-login");
+            const btnText = document.getElementById("btn-text");
+            const spinner = document.getElementById("loading-spinner");
+
+            
+            btnText.style.display = "none";
+            spinner.style.display = "inline-block";
+            submitButton.disabled = true;
+
+            try {
+                const response = await fetch("{{ url_for('auth.api_login') }}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                        "X-CSRFToken": csrfToken
+                    },
+                    body: JSON.stringify({ 
+                        email: email.toLowerCase(),
+                        password,
+                        remember_me: rememberMe 
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.message || "Login failed. Please try again.");
+                }
+
+                
+                displayFlashMessage(result.message || "Login successful!", "success");
+                setTimeout(() => {
+                    window.location.href = result.redirect_url || "{{ url_for('main.upload_image') }}";
+                }, 1500);
+
+            } catch (error) {
+                console.error("Login error:", error);
+                const errorMessage = error.message.includes("Failed to fetch") 
+                    ? "Network error - please check your connection"
+                    : error.message;
+                displayFlashMessage(errorMessage || "Login failed. Please check your credentials.", "danger");
+            } finally {
+                
+                btnText.style.display = "inline";
+                spinner.style.display = "none";
+                submitButton.disabled = false;
+            }
+        }
+
+        function displayFlashMessage(message, type) {
+            const flashMessagesDiv = document.getElementById("flash-messages");
+            flashMessagesDiv.innerHTML = "";
+            const alertDiv = document.createElement("div");
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            flashMessagesDiv.appendChild(alertDiv);
+            
+            
+            if (type === 'success') {
+                setTimeout(() => alertDiv.remove(), 2000);
+            }
+        }
+    });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

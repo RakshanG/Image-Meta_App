@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metadata - ImageMeta</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .img-fluid {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .table {
+            margin-top: 20px;
+        }
+        .btn-group {
+            margin-top: 20px;
+        }
+        .btn {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mt-4">Image Metadata</h1>
+
+        
+        <div class="text-center mb-4">
+            {% if image.filename %}
+                <img src="{{ url_for('main.serve_image', filename=image.filename) }}" alt="Uploaded Image: {{ image.filename }}" class="img-fluid" style="max-width: 500px;">
+            {% else %}
+                <div class="alert alert-warning" role="alert">
+                    No image available for preview.
+                </div>
+            {% endif %}
+        </div>
+
+        
+        <h2>EXIF Data:</h2>
+        {% if metadata %}
+            
+            <div class="mb-3">
+                <label for="filter">Filter by Key:</label>
+                <input type="text" id="filter" oninput="filterTable()" placeholder="Search...">
+                <label for="sort" class="ms-3">Sort by:</label>
+                <select id="sort" onchange="sortTable()">
+                    <option value="0">Key</option>
+                    <option value="1">Value</option>
+                </select>
+            </div>
+
+            <table class="table table-bordered table-striped" id="metadata-table">
+                <thead>
+                    <tr>
+                        <th>Key</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for key, value in metadata.items() %}
+                        <tr>
+                            <td><strong>{{ key }}</strong></td>
+                            <td>{{ value }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="alert alert-info" role="alert">
+                No metadata available for this image.
+            </div>
+        {% endif %}
+
+        
+        {% if metadata and metadata.get('latitude') and metadata.get('longitude') %}
+            <div class="mt-4">
+                <h3>Location Data:</h3>
+                <p><strong>Latitude:</strong> {{ metadata['latitude'] }}, <strong>Longitude:</strong> {{ metadata['longitude'] }}</p>
+                <a href="https://www.google.com/maps?q={{ metadata['latitude'] }},{{ metadata['longitude'] }}" target="_blank" class="btn btn-info">
+                    Open Location in Google Maps
+                </a>
+            </div>
+        {% endif %}
+
+        
+        <div class="btn-group mt-4">
+            <a href="{{ url_for('main.download_metadata', image_id=image.id) }}" class="btn btn-primary">
+                Download Metadata as JSON
+            </a>
+            <a href="{{ url_for('main.upload_image') }}" class="btn btn-secondary">
+                Upload Another Image
+            </a>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#clearMetadataModal">
+                Clear Metadata
+            </button>
+            <a href="{{ url_for('main.home') }}" class="btn btn-warning">
+                Back to Home
+            </a>
+        </div>
+    </div>
+
+    
+    <div class="modal fade" id="clearMetadataModal" tabindex="-1" aria-labelledby="clearMetadataModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="clearMetadataModalLabel">Clear Metadata</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to clear the metadata for this image? This action cannot be undone.
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form action="{{ url_for('main.clear_metadata', image_id=image.id) }}" method="POST">
+                        
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-danger">Clear Metadata</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        
+        function filterTable() {
+            const filter = document.getElementById('filter').value.toUpperCase();
+            const table = document.getElementById('metadata-table');
+            const rows = table.getElementsByTagName('tr');
+            for (let i = 1; i < rows.length; i++) { 
+                const cells = rows[i].getElementsByTagName('td');
+                let showRow = false;
+                for (let j = 0; j < cells.length; j++) {
+                    if (cells[j].textContent.toUpperCase().indexOf(filter) > -1) {
+                        showRow = true;
+                        break;
+                    }
+                }
+                rows[i].style.display = showRow ? '' : 'none';
+            }
+        }
+
+        
+        function sortTable() {
+            const table = document.getElementById('metadata-table');
+            const tbody = table.getElementsByTagName('tbody')[0];
+            const rows = Array.from(tbody.getElementsByTagName('tr'));
+            const sortBy = parseInt(document.getElementById('sort').value);
+
+            rows.sort((a, b) => {
+                const aValue = a.getElementsByTagName('td')[sortBy].textContent;
+                const bValue = b.getElementsByTagName('td')[sortBy].textContent;
+                return aValue.localeCompare(bValue, undefined, { numeric: true, sensitivity: 'base' });
+            });
+
+        
+            while (tbody.firstChild) {
+                tbody.removeChild(tbody.firstChild);
+            }
+
+            
+            rows.forEach(row => tbody.appendChild(row));
+        }
+    </script>
+</body>
+</html>
